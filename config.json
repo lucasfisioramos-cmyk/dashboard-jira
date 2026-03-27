@@ -1,0 +1,19 @@
+{
+  "github": {
+    "org": "fatec-api",
+    "repos": [
+      "api-3dsm-backend",
+      "api-3dsm-frontend"
+    ]
+  },
+  "regex": {
+    "us_summary_pattern": "User\\s*Story\\s*0*(\\d+)",
+    "subtask_summary_pattern": "(?:Task|Tarefa|Subtask)\\s*[-]*\\s*0*(\\d+)",
+    "commit_pattern": "US[-]*(\\d+)[-]*(\\d+)",
+    "us_format": "US{story:02d}-{task:02d}",
+    "use_jira_key_as_canonical": false
+  },
+  "dev_mapping": {
+    "kakashinho": "joao-siqueira"
+  }
+}
