@@ -1,19 +1,22 @@
 {
   "github": {
-    "org": "fatec-api",
+    "org": "lucasfisioramos-cmyk",
     "repos": [
-      "api-3dsm-backend",
-      "api-3dsm-frontend"
-    ]
+      "Zip-Coders"]
   },
   "regex": {
     "us_summary_pattern": "User\\s*Story\\s*0*(\\d+)",
     "subtask_summary_pattern": "(?:Task|Tarefa|Subtask)\\s*[-]*\\s*0*(\\d+)",
-    "commit_pattern": "US[-]*(\\d+)[-]*(\\d+)",
+    "commit_pattern": "PROJ[-]*(\\d+)[-]*(\\d+)",
     "us_format": "US{story:02d}-{task:02d}",
-    "use_jira_key_as_canonical": false
+    "use_jira_key_as_canonical": true
   },
   "dev_mapping": {
-    "kakashinho": "joao-siqueira"
+    "daviespedro":"Pedro Davies",
+    "NicolasXy": "Nicolas de Oliveira",
+    "Matheusxfc": "Matheus Silva",
+    "lucasfisioramos-cmyk": "Lucas Lemes",
+    "heitorhora": "heitorhora1910",
+    "danielandradefatec": "Daniel de Melo Andrade"
   }
 }

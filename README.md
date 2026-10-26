@@ -146,10 +146,9 @@ Esse script normaliza os nomes automaticamente, facilitando o `dev_mapping`.
 ```json
 {
   "github": {
-    "org": "fatec-api",
+    "org": "lucasfisioramos-cmyk",
     "repos": [
-      "api-3dsm-backend",
-      "api-3dsm-frontend"
+      "Zip-Coders"
     ]
   },
   "regex": {

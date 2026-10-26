@@ -153,18 +153,45 @@ def process_jira_data():
             labels = fields.get("labels", [])
             label = labels[0] if labels else "Sem Tag"
             
-            status_raw = fields.get("status", {}).get("name", "").lower()
-            if "concluíd" in status_raw or "done" in status_raw: status_group = "Concluída"
-            elif "review" in status_raw: status_group = "Em Review"
-            elif "andamento" in status_raw or "progress" in status_raw: status_group = "Em Andamento"
-            else: status_group = "Pendente"
+            # ==========================================
+            # CORREÇÃO DO MAPEAMENTO DE STATUS
+            # ==========================================
+            status_obj = fields.get("status") or {}
+            status_raw = str(status_obj.get("name") or "").strip().casefold()
+            status_category = status_obj.get("statusCategory") or {}
+            status_category_key = str(status_category.get("key") or "").casefold()
+
+            if status_category_key == "done":
+                status_group = "Concluída"
+            elif status_category_key == "indeterminate":
+                if any(w in status_raw for w in ["review", "revisão", "revisao", "homolog"]):
+                    status_group = "Em Review"
+                else:
+                    status_group = "Em Andamento"
+            elif status_category_key == "new":
+                status_group = "Pendente"
+            elif any(w in status_raw for w in ["concluida", "concluída", "done", "pronto", "finalizada", "closed", "resolved"]):
+                status_group = "Concluída"
+            elif any(w in status_raw for w in ["review", "revisão", "revisao", "homolog"]):
+                status_group = "Em Review"
+            elif any(w in status_raw for w in ["andamento", "progress", "doing", "desenvolvimento", "dev"]):
+                status_group = "Em Andamento"
+            else:
+                status_group = "Pendente"
 
             time_spent_h = (fields.get("timespent", 0) or 0) / 3600
 
             subtasks_data.append({
-                "subtask_key": st_key, "subtask_summary": st_summary, "story_key": story_key, "story_summary": story_summary,
-                "assignee": assignee_norm, "label": label, "status_group": status_group, "time_spent_h": time_spent_h, 
-                "sprint": sprint_name, "canonical_id": canonical_id  
+                "subtask_key": st_key,
+                "subtask_summary": st_summary,
+                "story_key": story_key,
+                "story_summary": story_summary,
+                "assignee": assignee_norm,
+                "label": label,
+                "status_group": status_group,
+                "time_spent_h": time_spent_h,
+                "sprint": sprint_name,
+                "canonical_id": canonical_id,
             })
 
             for w in fields.get("worklog", {}).get("worklogs", []):
@@ -189,8 +216,12 @@ def process_jira_data():
                         })
 
     df_subtasks = pd.DataFrame(subtasks_data).drop_duplicates(subset=['subtask_key'])
-    df_worklogs = pd.DataFrame(worklogs_data)
-    df_changelogs = pd.DataFrame(changelog_data)
+    df_worklogs = pd.DataFrame(worklogs_data, columns=[
+        "subtask_key", "story_key", "author", "date", "time_spent_h"
+    ])
+    df_changelogs = pd.DataFrame(changelog_data, columns=[
+        "subtask_key", "author", "date", "from_status", "to_status"
+    ])
     
     if not df_worklogs.empty: df_worklogs['date'] = pd.to_datetime(df_worklogs['date'])
     if not df_changelogs.empty: df_changelogs['date'] = pd.to_datetime(df_changelogs['date'])
@@ -340,7 +371,7 @@ st.sidebar.subheader("2. Definir Meta da Sprint")
 
 opcoes_meta = {row['story_summary']: row['story_key'] for _, row in df_stories_filtrado.iterrows()}
 
-with st.sidebar.popover("⚙️ Selecionar User Stories", use_container_width=True):
+with st.sidebar.popover("⚙️ Selecionar User Stories", width='stretch'):
     st.markdown("**Escolha as histórias que farão parte da meta:**")
     meta_selecionada_titulos = st.multiselect(
         "Histórias",
@@ -359,13 +390,15 @@ df_meta = df_subtasks[df_subtasks['story_key'].isin(chaves_meta_manual)].copy()
 # ==========================================
 st.sidebar.markdown("---")
 if not df_meta.empty and chaves_meta_manual:
-    with st.sidebar.popover("📉 Abrir Burndown Chart", use_container_width=True):
+    with st.sidebar.popover("📉 Abrir Burndown Chart", width='stretch'):
         st.markdown("### Burndown de Entregas da Meta")
         
         s_start = df_stories_filtrado['sprint_start'].dropna().max() if 'sprint_start' in df_stories_filtrado else ""
         s_end = df_stories_filtrado['sprint_end'].dropna().max() if 'sprint_end' in df_stories_filtrado else ""
         
-        todas_datas = pd.to_datetime(df_worklogs['date'].dropna().tolist() + df_changelogs['date'].dropna().tolist())
+        datas_worklogs = df_worklogs['date'].dropna().tolist()
+        datas_changelogs = df_changelogs['date'].dropna().tolist()
+        todas_datas = pd.to_datetime(datas_worklogs + datas_changelogs)
         
         if pd.notna(s_start) and s_start != "": data_min = pd.to_datetime(s_start[:10])
         else: data_min = todas_datas.min() if not todas_datas.empty else pd.to_datetime('today') - pd.Timedelta(days=7)
@@ -402,7 +435,7 @@ if not df_meta.empty and chaves_meta_manual:
         fig_bd.update_layout(xaxis_title="Dias da Sprint", yaxis_title="Qtd. Subtasks", hovermode="x unified",
                              legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         
-        st.plotly_chart(fig_bd, use_container_width=True)
+        st.plotly_chart(fig_bd, width='stretch')
         st.caption("📥 Dica: Passe o mouse sobre o gráfico e clique no ícone de câmera para baixar a imagem ou na setinha para abrir em Tela Cheia.")
 
 st.sidebar.markdown("---")
@@ -439,7 +472,7 @@ if dev_selecionado != "Todos":
         
         row_tarefa_wl = df_subtasks[df_subtasks['subtask_key'] == ultimo_wl['subtask_key']]
         if not row_tarefa_wl.empty:
-            if st.sidebar.button(f"Abrir 📖 {id_legivel}", key="btn_wl", use_container_width=True):
+            if st.sidebar.button(f"Abrir 📖 {id_legivel}", key="btn_wl", width='stretch'):
                 modal_detalhes_tarefa(row_tarefa_wl.iloc[0], df_commits, dict_retornos_review)
 
     if ultimo_cl is not None:
@@ -449,7 +482,7 @@ if dev_selecionado != "Todos":
         
         row_tarefa_cl = df_subtasks[df_subtasks['subtask_key'] == ultimo_cl['subtask_key']]
         if not row_tarefa_cl.empty:
-            if st.sidebar.button(f"Abrir 📖 {id_legivel}", key="btn_cl", use_container_width=True):
+            if st.sidebar.button(f"Abrir 📖 {id_legivel}", key="btn_cl", width='stretch'):
                 modal_detalhes_tarefa(row_tarefa_cl.iloc[0], df_commits, dict_retornos_review)
 
     if ultimo_wl is None and ultimo_cl is None:
@@ -501,7 +534,7 @@ else:
                 """, unsafe_allow_html=True)
                 
                 # Botão que ativa o Popup/Modal
-                if st.button(f"Detalhes 🔍", key=f"btn_{prefix_key}_{row['subtask_key']}", use_container_width=True):
+                if st.button(f"Detalhes 🔍", key=f"btn_{prefix_key}_{row['subtask_key']}", width='stretch'):
                     modal_detalhes_tarefa(row, df_commits, dict_retornos_review)
 
                 st.markdown("<div style='border-bottom: 1px solid #E2E8F0; margin-bottom: 12px; margin-top: 4px;'></div>", unsafe_allow_html=True)
@@ -550,7 +583,7 @@ else:
             labels={'label': 'Categoria (TAG)', 'time_spent_h': 'Média de Horas'}
         )
         fig_tags.update_layout(plot_bgcolor="white", xaxis_title="", yaxis_title="Média (Horas)")
-        st.plotly_chart(fig_tags, use_container_width=True)
+        st.plotly_chart(fig_tags, width='stretch')
     else:
         st.info("Ainda não há tarefas concluídas nesta meta para gerar as métricas de média.")
 
@@ -693,7 +726,7 @@ if dev_selecionado != "Todos" and chaves_meta_manual:
             plot_bgcolor="white", xaxis_title="Dias", yaxis_title="Horas Trabalhadas", hovermode="x unified"
         )
         fig_linha.update_yaxes(rangemode="tozero")
-        st.plotly_chart(fig_linha, use_container_width=True)
+        st.plotly_chart(fig_linha, width='stretch')
     else:
         st.info("Não há horas registradas (worklogs) para este desenvolvedor mapeadas nesta sprint.")
 
@@ -708,10 +741,10 @@ with st.expander("🧪 Debug de Mapeamento Relacional (Logs)"):
         st.markdown("**Subtasks Mapeadas**")
         if not df_subtasks.empty:
             df_sub_dbg = df_subtasks[['subtask_key', 'subtask_summary', 'canonical_id', 'assignee']].dropna(subset=['canonical_id'])
-            st.dataframe(df_sub_dbg, use_container_width=True)
+            st.dataframe(df_sub_dbg, width='stretch')
 
     with col_dbg2:
         st.markdown("**Commits Mapeados**")
         if not df_commits.empty:
             df_com_dbg = df_commits[['message', 'canonical_id', 'author']].dropna(subset=['canonical_id'])
-            st.dataframe(df_com_dbg, use_container_width=True)
+            st.dataframe(df_com_dbg, width='stretch')

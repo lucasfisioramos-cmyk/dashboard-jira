@@ -8,6 +8,7 @@ JIRA_DOMAIN = os.getenv("JIRA_DOMAIN")
 EMAIL = os.getenv("EMAIL")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 JIRA_PROJECT = os.getenv("JIRA_PROJECT")
+JIRA_TOKEN = os.getenv("TOKEN")
 
 def normalize(name):
     # Remove acentos, espaços e caracteres especiais
